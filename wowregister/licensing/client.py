@@ -38,14 +38,21 @@ def verify(url, card, machine):
     payload = json.dumps({"license_key": card, "device_id": machine}).encode("utf-8")
     req = request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with request.build_opener(NoRedirect()).open(req, timeout=10) as response:
+        with request.build_opener(NoRedirect()).open(req, timeout=30) as response:
             raw = response.read(8193)
             if len(raw) > 8192:
                 raise ValueError("response too large")
             data = json.loads(raw)
     except error.HTTPError as exc:
         if exc.code == 403:
-            raise RuntimeError("卡密无效、已停用、已到期或已绑定其他电脑") from None
+            try:
+                code = json.loads(exc.read(2048)).get("code")
+            except (OSError, ValueError, AttributeError):
+                code = None
+            messages = {"invalid_card": "卡密不存在或格式不正确，请核对卡密",
+                        "disabled": "该卡密已被停用，请联系管理员", "expired": "该卡密已到期，请联系管理员",
+                        "bound_to_other_device": "该卡密已在另一台电脑激活，不能在本机使用"}
+            raise RuntimeError(messages.get(code, "卡密验证未通过，请联系管理员核对状态")) from None
         raise RuntimeError("授权服务暂不可用，已停止；请稍后重试") from None
     except (OSError, ValueError) as exc:
         raise RuntimeError("无法完成在线授权，已停止；请检查网络和验证服务") from exc

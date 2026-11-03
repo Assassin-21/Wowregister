@@ -1,0 +1,7 @@
+{
+  "name": "wowregister-license",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/*.test.js" },
+  "dependencies": { "@vercel/blob": "2.8.2" }
+}

@@ -10,7 +10,8 @@
 <body><main>
 <header><div><div class="brand">WOWREGISTER</div><h1>角色注册助手</h1></div><button class="quiet" id="quit">退出工具</button></header>
 <section class="card" aria-labelledby="authTitle"><div class="row" style="justify-content:space-between;margin-bottom:16px"><h2 id="authTitle" style="margin:0">设备激活</h2><span class="badge" id="authBadge">未激活</span></div>
-<form id="activateForm" class="row"><input id="card" class="grow" type="password" autocomplete="off" placeholder="输入绑定本机的卡密" aria-label="卡密"><button id="activate" class="secondary">验证并激活</button></form>
+<form id="activateForm" class="row"><input id="card" class="grow" type="password" autocomplete="off" placeholder="输入卡密，首次激活自动绑定本机" aria-label="卡密"><button id="activate" class="secondary">验证并激活</button></form>
+<p class="muted" style="margin:12px 0 0">首次激活自动绑定当前电脑，之后此卡仅限本机使用。</p>
 <div class="machine"><span>本机机器码</span><code id="machine">正在读取…</code><button class="secondary" id="copy">复制机器码</button></div>
 <div class="error" id="authError" role="alert"></div></section>
 <section class="card" aria-labelledby="runTitle"><h2 id="runTitle">运行设置</h2><form id="runForm">

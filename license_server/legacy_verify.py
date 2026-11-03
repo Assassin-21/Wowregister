@@ -1,4 +1,4 @@
-"""Vercel license verifier. All storage credentials stay in server environment."""
+"""Legacy prebound reference and offline HMAC helper; production uses api/verify.js."""
 from datetime import datetime, timezone
 import hashlib
 import hmac

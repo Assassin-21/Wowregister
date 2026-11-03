@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 
-from license_server.api.verify import authorize, Denied, Unavailable, key_hash, handler
+from license_server.legacy_verify import authorize, Denied, Unavailable, key_hash, handler
 from wowregister.licensing import client
 from wowregister.licensing.device import fingerprint, protect
 from wowregister.tests.helpers import temporary_directory
@@ -71,6 +72,38 @@ class LicensingTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     client.service_url()
 
+    def test_client_403_codes_show_specific_messages_without_upstream_details(self):
+        messages = {
+            "invalid_card": "卡密不存在或格式不正确，请核对卡密",
+            "disabled": "该卡密已被停用，请联系管理员",
+            "expired": "该卡密已到期，请联系管理员",
+            "bound_to_other_device": "该卡密已在另一台电脑激活，不能在本机使用",
+            "unknown_SECRET": "卡密验证未通过，请联系管理员核对状态",
+        }
+        for code, expected in messages.items():
+            with self.subTest(code=code):
+                body = io.BytesIO(json.dumps({"ok": False, "code": code, "message": "SECRET"}).encode())
+                opener = Mock()
+                opener.open.side_effect = HTTPError("https://example.com/api/verify", 403, "SECRET", {}, body)
+                with patch.object(client.request, "build_opener", return_value=opener):
+                    with self.assertRaises(RuntimeError) as raised:
+                        client.verify("https://example.com/api/verify", CARD, MACHINE_A)
+                self.assertEqual(str(raised.exception), expected)
+                self.assertNotIn("SECRET", str(raised.exception))
+
+    def test_client_accepts_automatic_activation_only_for_requested_machine(self):
+        for machine in (MACHINE_A, MACHINE_B):
+            with self.subTest(response_machine=machine):
+                payload = {"ok": True, "device_id": machine, "activation": "activated", "recheck_after": 45}
+                opener = Mock()
+                opener.open.return_value = io.BytesIO(json.dumps(payload).encode())
+                with patch.object(client.request, "build_opener", return_value=opener):
+                    if machine == MACHINE_A:
+                        self.assertIsNone(client.verify("https://example.com/api/verify", CARD, MACHINE_A))
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "授权响应无效"):
+                            client.verify("https://example.com/api/verify", CARD, MACHINE_A)
+
     def test_machine_guid_normalized_and_raw_guid_not_uploaded(self):
         guid = "ABCDEF12-3456-7890-ABCD-EF1234567890"
         machine = fingerprint(guid)
@@ -122,23 +155,23 @@ class LicensingTests(unittest.TestCase):
         instance.headers["Content-Type"] = "application/json"
         instance.rfile = io.BytesIO(b"{}")
         instance.reply = Mock()
-        with patch("license_server.api.verify.authorize", side_effect=RuntimeError("SECRET")):
+        with patch("license_server.legacy_verify.authorize", side_effect=RuntimeError("SECRET")):
             instance.do_POST()
         self.assertEqual(instance.reply.call_args.args, (503, {"ok": False, "code": "temporarily_unavailable"}))
 
     def test_jsonbin_request_uses_application_user_agent(self):
-        from license_server.api.verify import json_request
+        from license_server.legacy_verify import json_request
         opener = Mock()
         opener.open.return_value.__enter__ = Mock(return_value=Mock(read=Mock(return_value=b'{"ok":true}')))
         opener.open.return_value.__exit__ = Mock(return_value=False)
-        with patch("license_server.api.verify.request.build_opener", return_value=opener):
+        with patch("license_server.legacy_verify.request.build_opener", return_value=opener):
             self.assertTrue(json_request("https://api.jsonbin.io/test", {})["ok"])
         req = opener.open.call_args.args[0]
         self.assertEqual(req.get_header("User-agent"), "Wowregister-License/0.3")
 
     def test_master_key_configuration_uses_master_header(self):
         with patch.dict(os.environ, {"JSONBIN_BIN_ID": "a"*24, "JSONBIN_MASTER_KEY": "test-master", "JSONBIN_ACCESS_KEY": ""}), \
-                patch("license_server.api.verify.json_request", return_value=self.record) as read:
+                patch("license_server.legacy_verify.json_request", return_value=self.record) as read:
             self.assertTrue(authorize({"license_key": CARD, "device_id": MACHINE_A})["ok"])
         self.assertEqual(read.call_args.args[1]["X-Master-Key"], "test-master")
 
