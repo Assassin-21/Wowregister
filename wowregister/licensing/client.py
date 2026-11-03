@@ -5,11 +5,13 @@ import os
 from pathlib import Path
 import threading
 import time
+import sys
 from urllib import error, parse, request
 
 from .device import device_id, protect
+from wowregister.paths import resource_root
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = resource_root()
 CACHE = Path(os.environ.get("LOCALAPPDATA", str(ROOT / "data"))) / "Wowregister/license.dat"
 _session = None
 _lock = threading.Lock()
@@ -22,9 +24,10 @@ class NoRedirect(request.HTTPRedirectHandler):
 
 def service_url():
     url = os.environ.get("WOWREGISTER_LICENSE_URL", "").strip()
-    path = ROOT / "license_client.json"
-    if not url and path.exists():
-        url = json.loads(path.read_text(encoding="utf-8")).get("url", "").strip()
+    external = Path(sys.executable).parent if getattr(sys, "frozen", False) else ROOT
+    for path in (external / "license_client.json", ROOT / "wowregister/default_service.json"):
+        if not url and path.exists():
+            url = json.loads(path.read_text(encoding="utf-8")).get("url", "").strip()
     parsed = parse.urlsplit(url)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise RuntimeError("请在 license_client.json 中设置 HTTPS 验证接口 url；参见 docs/LICENSING.md")

@@ -2,7 +2,7 @@
 
 ## 当前版本
 
-当前录制及回放不检查卡密。授权模块保留，尚未恢复。组合入口为项目根目录的 `replay_cycle.cmd`。
+v0.3 已启用卡密。Windows 成品双击 `Wowregister.exe`，在本地页面激活后选择模式、轮数并点击启动；无需安装 Python 或 ChatGPT。源码也可使用 `start_register.cmd` 打开同一页面，或先激活后运行 `replay_cycle.cmd`。
 
 ## 两种模式
 
@@ -58,7 +58,7 @@ ruleset 从失败弹窗尚未关闭时开始 F6 录制，记录返回与选择�
 
 1. 拉取本仓库，安装 Python 3.11+，运行 `setup_registration.cmd` 建立本机 `.venv`。不要复制旧电脑的虚拟环境。
 2. 当前录制客户区为 1920×1080，DPI 96。建议桌面分辨率 1920×1080、Windows 缩放 100%，游戏采用一致的无边框全屏和 UI 布局。屏幕物理尺寸不影响坐标，但不支持自动缩放适配。
-3. JSON 的 `executable` 当前指向 `D:\Game\魔兽世界无限\World of Warcraft\_forever_\Wow.exe`。新电脑路径不同，需核对真实路径后同步修改 direct 与两份 ruleset，或现场重录；不能只移除窗口校验。
+3. 录制 JSON 保留原机游戏路径。EXE 页面允许安装盘符不同，按 F6 后只绑定前台 `Wow.exe`，尺寸和 DPI 仍严格核对。命令行回放保留严格路径校验，路径不同需同步修改 direct 与两份 ruleset 或现场重录。
 4. 检查 PNG 预览和 JSON 内嵌检查点：程序实际读取 JSON 内的图片，仅改 PNG 不生效。
 5. 各模式先测试 1 轮，确认填名、失败识别与返回起点都正确后再增加轮数。
 

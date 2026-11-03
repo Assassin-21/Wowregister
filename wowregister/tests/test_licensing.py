@@ -126,6 +126,22 @@ class LicensingTests(unittest.TestCase):
             instance.do_POST()
         self.assertEqual(instance.reply.call_args.args, (503, {"ok": False, "code": "temporarily_unavailable"}))
 
+    def test_jsonbin_request_uses_application_user_agent(self):
+        from license_server.api.verify import json_request
+        opener = Mock()
+        opener.open.return_value.__enter__ = Mock(return_value=Mock(read=Mock(return_value=b'{"ok":true}')))
+        opener.open.return_value.__exit__ = Mock(return_value=False)
+        with patch("license_server.api.verify.request.build_opener", return_value=opener):
+            self.assertTrue(json_request("https://api.jsonbin.io/test", {})["ok"])
+        req = opener.open.call_args.args[0]
+        self.assertEqual(req.get_header("User-agent"), "Wowregister-License/0.3")
+
+    def test_master_key_configuration_uses_master_header(self):
+        with patch.dict(os.environ, {"JSONBIN_BIN_ID": "a"*24, "JSONBIN_MASTER_KEY": "test-master", "JSONBIN_ACCESS_KEY": ""}), \
+                patch("license_server.api.verify.json_request", return_value=self.record) as read:
+            self.assertTrue(authorize({"license_key": CARD, "device_id": MACHINE_A})["ok"])
+        self.assertEqual(read.call_args.args[1]["X-Master-Key"], "test-master")
+
 
 if __name__ == "__main__":
     unittest.main()

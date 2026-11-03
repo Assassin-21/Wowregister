@@ -257,11 +257,11 @@ class RegistrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate(macro)
 
-    def test_record_and_replay_work_without_license_verification(self):
+    def test_record_and_replay_require_license_verification(self):
         macro, _ = fixture()
         with temporary_directory() as directory:
             path = Path(directory) / "macro.json"
-            with patch("wowregister.licensing.client.require_license", side_effect=AssertionError("licensing must stay disabled")) as authorization, \
+            with patch("wowregister.licensing.client.require_license") as authorization, \
                     patch("sys.stdout", new_callable=io.StringIO):
                 with patch("sys.argv", ["record", "--output", str(path), "--name-first", "First", "--name-second", "Second"]), \
                         patch("wowregister.registration.record.Desktop"), \
@@ -276,7 +276,15 @@ class RegistrationTests(unittest.TestCase):
                         patch("wowregister.registration.replay.replay") as player:
                     self.assertEqual(replay_main(), 0)
                     player.assert_called_once()
-                authorization.assert_not_called()
+                self.assertEqual(authorization.call_count, 2)
+
+    def test_license_denial_blocks_recording_before_desktop_creation(self):
+        with patch("sys.argv", ["record", "--name-first", "First", "--name-second", "Second"]), \
+                patch("wowregister.licensing.client.require_license", side_effect=RuntimeError("卡密无效")), \
+                patch("wowregister.registration.record.Desktop") as desktop, \
+                patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(record_main(), 1)
+        desktop.assert_not_called()
 
 
 if __name__ == "__main__":

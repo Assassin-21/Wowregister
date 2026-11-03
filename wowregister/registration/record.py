@@ -104,7 +104,9 @@ def main():
                  args.name_second if args.name_second is not None else random_name()]
         validate_names(names)
         print(f"自动填名：{names[0]} / {names[1]}。点击两个输入框后分别按 F7 / F8。", flush=True)
-        desktop = Desktop()
+        from wowregister.licensing.client import require_license
+        session = require_license()
+        desktop = Desktop(license_guard=session.check)
         wait_for_start(desktop)
         macro = record(desktop, names, (args.checkpoint_width, args.checkpoint_height))
         save(args.output, macro)

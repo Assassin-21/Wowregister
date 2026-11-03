@@ -35,7 +35,9 @@ def main():
         # Validate all replay settings before the user switches windows; no input is emitted.
         validate_replay(macro, repeat, args.interval, args.timeout, args.tolerance)
         print("每轮自动生成两个 8–10 位字母名字（命令行指定的名字除外）。", flush=True)
-        desktop = Desktop()
+        from wowregister.licensing.client import require_license
+        session = require_license()
+        desktop = Desktop(license_guard=session.check)
         wait_for_start(desktop)
         desktop.bind(macro)
         desktop.wait(.4)  # Let the initiating F6 key be released.

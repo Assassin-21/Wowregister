@@ -1,10 +1,10 @@
 """Direct creation, bounded Enter retry, then recorded return route."""
 import argparse
-from pathlib import Path
+from wowregister.paths import resource_root
 from .macro import load, replay, random_name, checkpoint_image, image_error
 from .windows import Desktop, wait_for_start
 
-ROOT = Path(__file__).resolve().parents[2] / "data/registration"
+ROOT = resource_root() / "data/registration"
 
 def split_direct(macro):
     actions = macro["actions"]
@@ -46,14 +46,14 @@ def matches_checkpoint(expected, actual):
     return False
 
 
-def enter_until(desktop, checkpoint, timeout=60):
+def enter_until(desktop, checkpoint, timeout=60, report=print):
     expected = checkpoint_image(checkpoint)
     desktop.guard()
     already_matches = matches_checkpoint(expected, desktop.capture(checkpoint["box"]))
     desktop.guard()
     if already_matches:
         raise RuntimeError("尚未按回车就已匹配 F9 图片，检查点可能截到了背景。已停止，不执行返回路线；请重录失败提示文字区域")
-    print("开始自动回车，约每秒 1.5 次，等待 F9 失败提示", flush=True)
+    report("开始自动回车，约每秒 1.5 次，等待 F9 失败提示")
     presses = 0
     deadline, next_enter, matches = desktop.now()+timeout, desktop.now(), 0
     while True:
@@ -61,7 +61,7 @@ def enter_until(desktop, checkpoint, timeout=60):
         matched = matches_checkpoint(expected, desktop.capture(checkpoint["box"]))
         desktop.guard()
         if matched and matches == 0:
-            print("检测到失败提示，暂停回车并确认画面", flush=True)
+            report("检测到失败提示，暂停回车并确认画面")
         matches = matches + 1 if matched else 0
         if matches >= 2:
             if not presses:
@@ -73,7 +73,7 @@ def enter_until(desktop, checkpoint, timeout=60):
         if not matched and desktop.now() >= next_enter:
             desktop.press_enter()
             presses += 1
-            print(f"已发送第 {presses} 次回车", flush=True)
+            report(f"已发送第 {presses} 次回车")
             next_enter = desktop.now()+.67
         desktop.wait(.1)
 
@@ -90,6 +90,41 @@ def route_path(mode):
     return ROOT / "ruleset" / ("macro.json" if mode == 1 else "macro_1.json")
 
 
+def validate_settings(mode, repeat, timeout=60):
+    if type(mode) is not int or mode not in (1, 2):
+        raise ValueError("请选择模式 1 或模式 2")
+    if type(repeat) is not int or not 1 <= repeat <= 10000 or not 1 <= timeout <= 600:
+        raise ValueError("轮数需 1–10000，回车等待上限需 1–600 秒")
+
+
+def run_cycle(mode, repeat, timeout=60, stop_event=None, report=print, on_cycle=None, allow_game_path_change=False, license_session=None):
+    validate_settings(mode, repeat, timeout)
+    if license_session is None:
+        from wowregister.licensing.client import require_license
+        license_session = require_license(allow_prompt=False)
+    license_session.check()
+    direct = load(ROOT / "direct/macro.json")
+    path = route_path(mode)
+    route = load(path)
+    prefix, checkpoint = split_direct(direct)
+    validate_route(direct, route)
+    report(f"模式 {mode}，共 {repeat} 轮")
+    desktop = Desktop(stop_event=stop_event, report=report, license_guard=license_session.check)
+    wait_for_start(desktop, report=report)
+    desktop.bind(direct, allow_game_path_change=allow_game_path_change)
+    desktop.wait(.4)
+    for cycle in range(repeat):
+        desktop.guard()
+        if on_cycle:
+            on_cycle(cycle + 1, repeat)
+        report(f"组合流程 {cycle+1}/{repeat}")
+        replay(prefix, desktop, name_factory=lambda: [random_name(), random_name()], timing="direct", report=report)
+        enter_until(desktop, checkpoint, timeout, report=report)
+        report("已匹配 F9，执行返回路线")
+        replay(route, desktop, timing="ruleset", report=report)
+    report("已完成，停在 direct 起点。")
+
+
 def main():
     parser = argparse.ArgumentParser(description="direct → 自动回车直到 F9 → ruleset 返回路线 → direct")
     parser.add_argument("--mode", type=int, choices=(1, 2), help="1: macro.json；2: macro_1.json")
@@ -97,27 +132,10 @@ def main():
     parser.add_argument("--timeout", type=float, default=60)
     args = parser.parse_args()
     try:
-        direct = load(ROOT / "direct/macro.json")
         mode = args.mode if args.mode is not None else int(input("选择模式 1/2（1=macro.json，2=macro_1.json，默认 1）：") or "1")
-        path = route_path(mode)
-        route = load(path)
-        print(f"模式 {mode}：{path}", flush=True)
-        prefix, checkpoint = split_direct(direct)
-        validate_route(direct, route)
         repeat = args.repeat if args.repeat is not None else int(input("执行轮数（首次填 1）：") or "1")
-        if not 1 <= repeat <= 10000 or not 1 <= args.timeout <= 600:
-            raise ValueError("轮数需 1–10000，回车等待上限需 1–600 秒")
-        desktop = Desktop()
-        wait_for_start(desktop)
-        desktop.bind(direct)
-        desktop.wait(.4)
-        for cycle in range(repeat):
-            print(f"组合流程 {cycle+1}/{repeat}", flush=True)
-            replay(prefix, desktop, name_factory=lambda: [random_name(), random_name()], timing="direct")
-            enter_until(desktop, checkpoint, args.timeout)
-            print("已匹配 F9，执行返回路线", flush=True)
-            replay(route, desktop, timing="ruleset")
-        print("已完成，停在 direct 起点。", flush=True)
+        from wowregister.licensing.client import require_license
+        run_cycle(mode, repeat, args.timeout, report=lambda text: print(text, flush=True), license_session=require_license())
         return 0
     except (OSError, ValueError, RuntimeError, KeyboardInterrupt) as exc:
         print(f"组合流程已停止：{exc}", flush=True)

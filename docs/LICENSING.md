@@ -1,6 +1,6 @@
 # 卡密、电脑绑定与 Vercel / JSONBin 部署
 
-> 当前开发版本已移除录制和回放入口及运行中的卡密检查。以下为保留的授权方案，供后续恢复时参考；目前录制和回放无需部署或激活。单独运行激活工具仍会验证卡密。
+> v0.3 已恢复全部录制和回放入口的卡密检查，等待 F6 期间也会检查授权。验证服务已部署在 `https://wowregister-license.vercel.app/api/verify`；EXE 提供卡密激活页面。
 
 2026-11-03。按用户选择仅使用 Vercel + JSONBin 预绑定机器码，无需 Redis。客户端与验证 API 已实现，自动化测试通过；真实 JSONBin、Vercel 与游戏联调仍需账号配置。Windows 负责录制和点击；Vercel 只运行 `license_server/` 内的验证接口，不运行游戏或桌面脚本。
 
@@ -27,6 +27,7 @@
 | --- | --- |
 | `JSONBIN_BIN_ID` | 你创建的私有 Bin ID，24 位十六进制 |
 | `JSONBIN_ACCESS_KEY` | 只读且仅能访问该 Bin 的 Access Key |
+| `JSONBIN_MASTER_KEY` | 仅有 Master Key 时使用此变量；与 Access Key 二选一，优先用只读 Access Key |
 | `LICENSE_PEPPER` | 至少 32 字符的随机服务端密钥；签发卡密与验证服务必须使用相同值 |
 
 可通过密码管理器生成长随机 `LICENSE_PEPPER`。不要把 Vercel / JSONBin 的账号密钥发送到聊天或提交 GitHub。`.env.example` 只提供字段名和占位值；复制后的 `.env` 被 Git 忽略，生产环境使用 Vercel 环境变量。设置后重新部署。
@@ -72,9 +73,9 @@ API 公开供客户端 POST 验证；如 Vercel Deployment Protection 拦截客�
 
 ## 3. 激活和录制
 
-将根目录 `license_client.example.json` 复制为 `license_client.json`，把 `url` 换成已部署的 HTTPS 验证接口完整地址；它只含地址，不需要任何服务端密钥。也可用环境变量 `WOWREGISTER_LICENSE_URL` 设置。
+正式 EXE 已内置公开验证接口地址。源码默认读取 `wowregister/default_service.json`；也可用根目录（EXE 则为旁边目录）的 `license_client.json` 或 `WOWREGISTER_LICENSE_URL` 覆盖地址。配置只含地址，不需要任何服务端密钥。
 
-双击 `activate_license.cmd` 输入卡密，确认成功。卡密用 Windows DPAPI 加密保存到 `%LOCALAPPDATA%\Wowregister\license.dat`，默认只能由原 Windows 用户和电脑解密，参见[微软 DPAPI 文档](https://learn.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-using-cryptprotectdata)。复制该文件到另一电脑不会获得授权。
+在 EXE 页面输入卡密并点击激活，或源码运行 `activate_license.cmd`。卡密用 Windows DPAPI 加密保存到 `%LOCALAPPDATA%\Wowregister\license.dat`，默认只能由原 Windows 用户和电脑解密，参见[微软 DPAPI 文档](https://learn.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-using-cryptprotectdata)。复制该文件到另一电脑不会获得授权。
 
 之后按[注册脚本说明](REGISTRATION.md)录制：F7 对应第一个名字框，F8 对应第二个名字框，F9 记录失败画面。首次先回放一轮。
 

@@ -8,6 +8,10 @@ import time
 from PIL import ImageGrab
 
 
+class PlaybackStopped(RuntimeError):
+    pass
+
+
 class MouseInput(ctypes.Structure):
     _fields_ = [("dx", W.LONG), ("dy", W.LONG), ("data", W.DWORD), ("flags", W.DWORD),
                 ("time", W.DWORD), ("extra", ctypes.c_size_t)]
@@ -28,7 +32,9 @@ class Input(ctypes.Structure):
 
 
 class Desktop:
-    def __init__(self):
+    def __init__(self, stop_event=None, report=print, license_guard=None):
+        self.stop_event, self.report = stop_event, report
+        self.license_guard = license_guard
         if os.name != "nt":
             raise RuntimeError("录制和真实回放仅支持 Windows")
         self.user = ctypes.WinDLL("user32", use_last_error=True)
@@ -60,7 +66,7 @@ class Desktop:
             raise RuntimeError("无法读取目标窗口")
         return origin.x, origin.y, rect.right, rect.bottom
 
-    def bind(self, macro=None):
+    def bind(self, macro=None, allow_game_path_change=False):
         self.hwnd = self.user.GetForegroundWindow()
         pid = W.DWORD()
         self.user.GetWindowThreadProcessId(self.hwnd, ctypes.byref(pid))
@@ -85,15 +91,25 @@ class Desktop:
         self.dpi = self.user.GetDpiForWindow(self.hwnd)
         if min(self.initial_geometry[2:]) <= 0:
             raise RuntimeError("目标窗口不可用")
-        if macro and (os.path.normcase(self.executable) != os.path.normcase(macro["executable"])
+        same_program = not macro or os.path.normcase(self.executable) == os.path.normcase(macro["executable"])
+        if macro and allow_game_path_change:
+            same_program = Path(self.executable).name.lower() == Path(macro["executable"]).name.lower() == "wow.exe"
+        if macro and (not same_program
                       or list(self.initial_geometry[2:]) != macro["client_size"]
                       or self.dpi != macro.get("dpi", self.dpi)):
             raise RuntimeError("目标程序、窗口尺寸或 DPI 与录制不同，请恢复布局或重新录制")
-        print(f"已绑定：{Path(self.executable).name}，客户区 {self.initial_geometry[2:]}，DPI {self.dpi}", flush=True)
+        self.report(f"已绑定：{Path(self.executable).name}，客户区 {self.initial_geometry[2:]}，DPI {self.dpi}")
+
+    def check_cancelled(self):
+        if getattr(self, "stop_event", None) is not None and self.stop_event.is_set():
+            raise PlaybackStopped("已按停止按钮，操作已停止")
+        if getattr(self, "license_guard", None):
+            self.license_guard()
 
     def guard(self):
+        self.check_cancelled()
         if self.down(0x79):
-            raise RuntimeError("已按 F10 停止")
+            raise PlaybackStopped("已按 F10 停止")
         if self.user.GetForegroundWindow() != self.hwnd:
             raise RuntimeError("目标窗口失去焦点，已停止")
         if self.geometry() != self.initial_geometry or self.user.GetDpiForWindow(self.hwnd) != self.dpi:
@@ -206,12 +222,13 @@ class Desktop:
             self.wait(.03)
 
 
-def wait_for_start(desktop):
-    print("切到注册页面，松开其他按键，再按 F6 开始。F10 取消。", flush=True)
+def wait_for_start(desktop, report=print):
+    report("切回游戏角色列表，松开其他按键，再按 F6 开始。F10 取消。")
     previous = desktop.down(0x75)
     while True:
+        desktop.check_cancelled()
         if desktop.down(0x79):
-            raise RuntimeError("已按 F10 取消")
+            raise PlaybackStopped("已按 F10 取消")
         current = desktop.down(0x75)
         if current and not previous:
             return
