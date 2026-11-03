@@ -84,14 +84,24 @@ def validate_route(direct, route):
         if direct.get(field) != route.get(field):
             raise ValueError("两份录制的程序、尺寸或 DPI 不一致，请重录")
 
+def route_path(mode):
+    if mode not in (1, 2):
+        raise ValueError("模式只能选择 1 或 2")
+    return ROOT / "ruleset" / ("macro.json" if mode == 1 else "macro_1.json")
+
+
 def main():
     parser = argparse.ArgumentParser(description="direct → 自动回车直到 F9 → ruleset 返回路线 → direct")
+    parser.add_argument("--mode", type=int, choices=(1, 2), help="1: macro.json；2: macro_1.json")
     parser.add_argument("--repeat", type=int)
     parser.add_argument("--timeout", type=float, default=60)
     args = parser.parse_args()
     try:
         direct = load(ROOT / "direct/macro.json")
-        route = load(ROOT / "ruleset/macro.json")
+        mode = args.mode if args.mode is not None else int(input("选择模式 1/2（1=macro.json，2=macro_1.json，默认 1）：") or "1")
+        path = route_path(mode)
+        route = load(path)
+        print(f"模式 {mode}：{path}", flush=True)
         prefix, checkpoint = split_direct(direct)
         validate_route(direct, route)
         repeat = args.repeat if args.repeat is not None else int(input("执行轮数（首次填 1）：") or "1")

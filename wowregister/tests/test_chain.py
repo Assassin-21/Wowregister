@@ -87,3 +87,21 @@ class TimingTests(unittest.TestCase):
             replay(macro, desktop, timing="ruleset", report=lambda _: None)
         self.assertEqual([c.args[0] for c in desktop.wait.call_args_list],
                          [1, 5.25, 5.25, 5.25, 5.25, .75, .75, 1])
+
+    def test_fixed_wait_overrides_ruleset_last_click(self):
+        from wowregister.registration.macro import replay
+        macro, image = fixture()
+        click = macro["actions"][2]
+        macro["actions"] = [{**click, "delay": 1} for _ in range(7)]
+        macro["actions"][6].update(delay=20, fixed_delay=True)
+        desktop = FakeDesktop(image)
+        desktop.wait = Mock()
+        replay(macro, desktop, timing="ruleset", report=lambda _: None)
+        self.assertEqual(desktop.wait.call_args_list[-1].args, (20,))
+
+    def test_cycle_mode_routes(self):
+        from wowregister.registration.chain import route_path
+        self.assertEqual(route_path(1).name, "macro.json")
+        self.assertEqual(route_path(2).name, "macro_1.json")
+        with self.assertRaises(ValueError):
+            route_path(3)

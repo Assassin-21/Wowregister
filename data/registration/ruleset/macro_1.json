@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "executable": "D:\\Game\\魔兽世界无限\\World of Warcraft\\_forever_\\Wow.exe",
+  "client_size": [
+    1920,
+    1080
+  ],
+  "dpi": 96,
+  "names": [
+    "Yhrunlvs",
+    "Lscbgolhn"
+  ],
+  "recorded_at": "2026-11-03T16:30:39.426506+08:00",
+  "actions": [
+    {
+      "type": "click",
+      "delay": 3.547999999998865,
+      "x": 957,
+      "y": 560,
+      "button": "left",
+      "hold": 0.062000000001717126
+    },
+    {
+      "type": "click",
+      "delay": 1.625,
+      "x": 171,
+      "y": 1020,
+      "button": "left",
+      "hold": 0.1569999999992433
+    },
+    {
+      "type": "click",
+      "delay": 1.2030000000013388,
+      "x": 174,
+      "y": 1017,
+      "button": "left",
+      "hold": 0.125
+    },
+    {
+      "type": "click",
+      "delay": 2.2340000000003783,
+      "x": 101,
+      "y": 1046,
+      "button": "left",
+      "hold": 0.06299999999828287
+    },
+    {
+      "type": "click",
+      "delay": 6.484000000000378,
+      "x": 965,
+      "y": 532,
+      "button": "left",
+      "hold": 0.07800000000133878
+    },
+    {
+      "type": "click",
+      "delay": 4.702999999997701,
+      "x": 821,
+      "y": 559,
+      "button": "left",
+      "hold": 0.14099999999962165
+    },
+    {
+      "type": "click",
+      "delay": 1.7810000000026776,
+      "x": 1798,
+      "y": 1037,
+      "button": "left",
+      "hold": 0.125
+    },
+    {
+      "type": "click",
+      "delay": 8.265999999999622,
+      "x": 167,
+      "y": 1018,
+      "button": "left",
+      "hold": 0.13999999999941792
+    }
+  ]
+}

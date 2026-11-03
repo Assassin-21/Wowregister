@@ -60,6 +60,8 @@ def validate(macro):
     for action in actions:
         if not isinstance(action, dict) or not number(action.get("delay"), 0, 600):
             raise ValueError("动作等待时间应为 0–600 秒")
+        if "fixed_delay" in action and type(action["fixed_delay"]) is not bool:
+            raise ValueError("fixed_delay 必须为布尔值")
         kind = action.get("type")
         if kind == "click":
             if action.get("button") not in ("left", "right") or not number(action.get("hold"), 0, 2):
@@ -144,6 +146,8 @@ def validate_replay(macro, repeat, interval, timeout, tolerance):
 
 
 def action_delay(action, timing="recorded", edge_click=False):
+    if action.get("fixed_delay", False):
+        return action["delay"]
     if action["type"] == "click" and (timing == "direct" or (timing == "ruleset" and edge_click)):
         return random.uniform(.8, 1.2)
     if timing == "ruleset":
@@ -165,7 +169,7 @@ def replay(macro, desktop, repeat=1, interval=5, timeout=20, tolerance=.02, repo
         report(f"本轮名字：{names[0]} / {names[1]}")
         report(f"第 {cycle}/{repeat} 轮")
         for index, action in enumerate(actions, 1):
-            delay = (random.uniform(.6, .9) if timing == "ruleset" and index in short_clicks
+            delay = (random.uniform(.6, .9) if timing == "ruleset" and index in short_clicks and not action.get("fixed_delay", False)
                      else action_delay(action, timing, edge_click=index in edge_clicks))
             report(f"  等待 {delay:.2f}s")
             desktop.wait(delay)
