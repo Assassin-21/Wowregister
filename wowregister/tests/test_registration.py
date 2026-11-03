@@ -127,6 +127,20 @@ class RegistrationTests(unittest.TestCase):
                 replay(macro, desktop, **options)
             self.assertEqual(desktop.sent, [])
 
+    def test_ready_gate_timeout_blocks_following_click(self):
+        macro, image = fixture()
+        gate = {**macro["actions"][3], "purpose": "ready", "delay": 0}
+        macro["actions"] = [gate, macro["actions"][2]]
+        desktop = FakeDesktop(Image.new("RGB", image.size, "black"))
+        with self.assertRaises(RuntimeError):
+            replay(macro, desktop, timeout=1, report=lambda _: None)
+        self.assertEqual(desktop.sent, [])
+        with self.assertRaises(ValueError):
+            replay(macro, FakeDesktop(image), repeat=2)
+        desktop = FakeDesktop(image)
+        replay(macro, desktop, report=lambda _: None)
+        self.assertEqual(desktop.sent, [("click", 300)])
+
     def test_blank_checkpoint_is_rejected(self):
         macro, _ = fixture()
         macro["actions"][3]["image"] = encode_image(Image.new("RGB", (100, 40), "black"))
@@ -143,6 +157,7 @@ class RegistrationTests(unittest.TestCase):
         desktop = Desktop.__new__(Desktop)
         desktop.guard = Mock()
         desktop.ensure_modifiers_released = Mock()
+        desktop.move_to = Mock()
         desktop.geometry = Mock(return_value=(0, 0, 800, 600))
         desktop.user = Mock()
         desktop.wait = Mock(side_effect=RuntimeError("F10"))
@@ -156,6 +171,7 @@ class RegistrationTests(unittest.TestCase):
         desktop = Desktop.__new__(Desktop)
         desktop.guard = Mock()
         desktop.ensure_modifiers_released = Mock()
+        desktop.move_to = Mock()
         desktop.wait = Mock()
         desktop.key = Mock()
         desktop.type_name("中A")
@@ -188,12 +204,30 @@ class RegistrationTests(unittest.TestCase):
         self.assertAlmostEqual(macro["actions"][0]["hold"], .1)
         validate(macro)
 
+    def test_release_click_and_name_hotkey_in_same_poll(self):
+        _, image = fixture()
+        desktop = FakeDesktop(image)
+        desktop.executable = "C:/Game/Wow.exe"
+        desktop.initial_geometry = (0, 0, 800, 600)
+        desktop.dpi = 96
+        desktop.bind = Mock()
+        desktop.position = Mock(return_value=(250, 220))
+        frames = [set(), {1}, {0x76}, set(), {0x77}, set(), {0x75}]
+        frame = [0]
+        desktop.down = lambda key: key in frames[frame[0]]
+        desktop.now = lambda: frame[0] * .1
+        def advance(_):
+            frame[0] += 1
+        with patch("wowregister.registration.record.time.sleep", side_effect=advance), patch("sys.stdout", new_callable=io.StringIO):
+            macro = record(desktop, ["First", "Second"])
+        self.assertEqual([a["type"] for a in macro["actions"]], ["click", "name", "name"])
+        self.assertEqual(desktop.sent, [("name", "First"), ("name", "Second")])
+
     def test_cancelled_recording_does_not_overwrite_existing_file(self):
         with temporary_directory() as directory:
             path = Path(directory) / "macro.json"
             path.write_text("keep original", encoding="utf-8")
             with patch("sys.argv", ["record", "--output", str(path), "--name-first", "角色名", "--name-second", "Second"]), \
-                    patch("wowregister.licensing.client.require_license"), \
                     patch("wowregister.registration.record.Desktop"), \
                     patch("wowregister.registration.record.wait_for_start"), \
                     patch("wowregister.registration.record.record", side_effect=RuntimeError("F10")), \
@@ -223,13 +257,26 @@ class RegistrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate(macro)
 
-    def test_license_denial_prevents_desktop_initialization(self):
-        with patch("sys.argv", ["record", "--name-first", "First", "--name-second", "Second"]), \
-                patch("wowregister.licensing.client.require_license", side_effect=RuntimeError("denied")), \
-                patch("wowregister.registration.record.Desktop") as adapter, \
-                patch("sys.stdout", new_callable=io.StringIO):
-            self.assertEqual(record_main(), 1)
-        adapter.assert_not_called()
+    def test_record_and_replay_work_without_license_verification(self):
+        macro, _ = fixture()
+        with temporary_directory() as directory:
+            path = Path(directory) / "macro.json"
+            with patch("wowregister.licensing.client.require_license", side_effect=AssertionError("licensing must stay disabled")) as authorization, \
+                    patch("sys.stdout", new_callable=io.StringIO):
+                with patch("sys.argv", ["record", "--output", str(path), "--name-first", "First", "--name-second", "Second"]), \
+                        patch("wowregister.registration.record.Desktop"), \
+                        patch("wowregister.registration.record.wait_for_start"), \
+                        patch("wowregister.registration.record.record", return_value=macro) as recorder:
+                    self.assertEqual(record_main(), 0)
+                    recorder.assert_called_once()
+                self.assertEqual(load(path), macro)
+                with patch("sys.argv", ["replay", "--macro", str(path)]), \
+                        patch("wowregister.registration.replay.Desktop"), \
+                        patch("wowregister.registration.replay.wait_for_start"), \
+                        patch("wowregister.registration.replay.replay") as player:
+                    self.assertEqual(replay_main(), 0)
+                    player.assert_called_once()
+                authorization.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -4,16 +4,14 @@
 
 支持鼠标左右键点击和步骤间隔录制、两个名字输入框、失败提示图片检查点与有限次数重试。每段名字独立限制为最多 6 个汉字或 12 个英文字母；混合输入按汉字计 2、字母计 1，上限 12。
 
-真实录制和回放需要卡密授权。卡密在 JSONBin 预绑定目标 Windows 机器码；Vercel 部署验证 API，Windows 客户端运行鼠标操作。卡密本地通过 Windows DPAPI 加密保存，启动时及运行中在线核对。
+当前开发版本已移除录制和回放的卡密检查，可以直接在本机录制和回放，无需配置验证接口或激活。授权客户端与验证服务源码保留，供后续恢复；当前不会在启动或运行中调用授权检查。
 
 ## 新电脑使用
 
 1. 克隆此仓库，或从 GitHub 下载 ZIP 并解压。安装 Python 3.11+，安装器勾选 Add to PATH。
 2. 双击 `setup_registration.cmd`。桌面客户端只需 Pillow，不需要安装旧项目。
-3. 双击 `show_device_id.cmd` 获取目标电脑机器码，由管理员给卡密预绑定。
-4. 按[部署与卡密说明](docs/LICENSING.md)部署验证服务，将 `license_client.example.json` 复制为 `license_client.json` 并填写接口地址，再双击 `activate_license.cmd` 激活。
-5. 双击 `record_registration.cmd`，输入两个框的名字，切回注册页面录制完整的失败及返回起点流程。
-6. 双击 `replay_registration.cmd`，先回放 1 轮验证，再设置重试次数。
+3. 双击 `record_registration.cmd`，自动生成两个 8–10 位英文字母名字，切回注册页面录制完整的失败及返回起点流程。
+4. 双击 `replay_registration.cmd`，先回放 1 轮验证，再设置重试次数。
 
 | 热键 | 用途 |
 | --- | --- |
@@ -29,7 +27,7 @@
 
 导入 **本仓库 `Assassin-21/Wowregister`**，Root Directory 设置为 **`license_server`**，Framework Preset 选 **Other**。只部署验证服务，无需在 Vercel 安装游戏或运行桌面客户端。所需环境变量与 JSONBin 配置见[部署说明](docs/LICENSING.md)。
 
-部署服务并完成激活后才能真实录制。当前尚未完成真实服务和游戏联调。卡密授权与本地缓存加密不等于源码防破解。
+此部署流程供后续恢复授权时使用，当前录制和回放不依赖验证服务。当前尚未完成真实游戏联调。卡密授权与本地缓存加密不等于源码防破解。
 
 ## 本地验证
 
@@ -46,3 +44,15 @@ python -m venv .venv
 `--inspect` 需要已有的录制文件，只打印动作，不发送输入。自动化测试使用模拟桌面，Windows DPAPI 测试只验证本地加解密，不访问实际卡密服务或游戏。
 
 录制和签发数据位于本地 `data/`，卡密缓存位于 `%LOCALAPPDATA%\Wowregister\license.dat`。这些数据、虚拟环境、真实配置及服务端密钥不会上传 GitHub。新项目使用独立的卡密缓存、机器码命名空间和 `WOWREGISTER_LICENSE_URL` 环境变量。
+
+默认回放每轮重新生成两个 8–10 位英文字母名字，首字母大写，其余小写。F7/F8 仍用于记录两个填名动作，之前须分别点击输入框。命令行显式指定名字时使用指定值。失败截图应仅覆盖固定提示文字，避开角色名字，否则随机换名会影响匹配。
+
+## 当前联调版本（2026-11-03）
+
+组合回放入口为 `replay_cycle.cmd`：direct 填随机双名字 → 每秒约 1.5 次回车 → 匹配黄色失败提示 → ruleset 返回起点。F6 开始，F10 停止；首次先跑 1 轮。当前已停用卡密检查。
+
+按仓库所有者要求，此次提交包含 `data/registration/` 下的现有录制 JSON 和检查点 PNG。`direct/macro.json` 与 `ruleset/macro.json` 是组合流程使用的文件；根目录 `macro.json` 为旧录制，`macro.before_checkpoint_*.json` 为错误检查点替换前的历史备份，不用于当前组合回放。JSON 内嵌图片与 PNG 预览已一同保存。其他 data 内容仍默认忽略。
+
+录制环境：游戏客户区 1920×1080、DPI 96。换电脑需核对游戏路径、Windows 缩放、游戏布局及检查点匹配，当前不自动适配分辨率或路径。
+
+时间策略：direct 点击前随机 0.8–1.2 秒；ruleset 首尾点击前随机 0.8–1.2 秒，倒数第三及倒数第二次随机 0.6–0.9 秒，其余步骤保留录制等待并增加 0–0.5 秒。移动鼠标及按住时间另计。

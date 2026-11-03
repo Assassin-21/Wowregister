@@ -98,8 +98,6 @@ class Desktop:
             raise RuntimeError("目标窗口失去焦点，已停止")
         if self.geometry() != self.initial_geometry or self.user.GetDpiForWindow(self.hwnd) != self.dpi:
             raise RuntimeError("目标窗口移动、缩放或尺寸改变，已停止")
-        if getattr(self, "license_guard", None):
-            self.license_guard()
 
     @staticmethod
     def now():
@@ -138,12 +136,25 @@ class Desktop:
     def key(self, vk=0, scan=0, flags=0):
         self.send(Input(type=1, ki=KeyInput(vk=vk, scan=scan, flags=flags)))
 
+    def move_to(self, x, y):
+        """Smooth eased cursor movement; checks cancellation throughout."""
+        sx, sy = self.position()
+        ox, oy, _, _ = self.geometry()
+        distance = ((x-sx)**2 + (y-sy)**2)**.5
+        duration = min(.8, max(.18, distance / 1800))
+        steps = max(2, int(duration / .015))
+        for i in range(1, steps + 1):
+            self.guard()
+            t = i / steps
+            t = t*t*(3-2*t)
+            if not self.user.SetCursorPos(ox + round(sx+(x-sx)*t), oy + round(sy+(y-sy)*t)):
+                raise RuntimeError("无法移动鼠标")
+            self.wait(duration / steps)
+
     def click(self, action):
         self.guard()
         self.ensure_modifiers_released()
-        ox, oy, _, _ = self.geometry()
-        if not self.user.SetCursorPos(ox + action["x"], oy + action["y"]):
-            raise RuntimeError("无法移动鼠标")
+        self.move_to(action["x"], action["y"])
         self.guard()
         down, up = (2, 4) if action["button"] == "left" else (8, 16)
         try:
@@ -155,6 +166,15 @@ class Desktop:
     def ensure_modifiers_released(self):
         if any(self.down(vk) for vk in (0x10, 0x11, 0x12, 0x5B, 0x5C, 1, 2)):
             raise RuntimeError("请松开 Shift/Ctrl/Alt/Win 和鼠标按钮后再运行")
+
+    def press_enter(self):
+        self.guard()
+        self.ensure_modifiers_released()
+        try:
+            self.key(0x0D)
+            self.wait(.05)
+        finally:
+            self.key(0x0D, flags=2)
 
     def type_name(self, name):
         self.guard()

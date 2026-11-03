@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from .macro import DEFAULT_PATH, load, replay, validate, validate_replay
+from .macro import DEFAULT_PATH, load, replay, validate, validate_replay, random_name
 from .windows import Desktop, wait_for_start
 
 
@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--tolerance", type=float, default=.02)
     parser.add_argument("--inspect", action="store_true", help="只打印动作，不监听热键、不发送输入")
     parser.add_argument("--interactive", action="store_true", help="启动时询问回放次数，供双击入口使用")
+    parser.add_argument("--timing", choices=("recorded", "direct", "ruleset"), default="recorded")
     args = parser.parse_args()
     try:
         macro = load(args.macro)
@@ -24,7 +25,7 @@ def main():
             if value is not None:
                 macro["names"][slot] = value
         validate(macro)
-        print(f"录制文件：{args.macro.resolve()}\n目标程序：{macro['executable']}\n两个名字：{macro['names']}\n窗口尺寸：{macro['client_size']}")
+        print(f"录制文件：{args.macro.resolve()}\n目标程序：{macro['executable']}\n录制时名字：{macro['names']}\n窗口尺寸：{macro['client_size']}")
         for index, action in enumerate(macro["actions"], 1):
             detail = f" ({action['x']}, {action['y']}) {action['button']}" if action["type"] == "click" else (f" 输入框 {action['slot']+1}" if action["type"] == "name" else "")
             print(f"{index:02d}. 等待 {action['delay']:.2f}s → {action['type']}{detail}")
@@ -33,14 +34,14 @@ def main():
         repeat = int(input("回放次数（首次建议 1；输入 30 表示最多 30 轮，默认 1）：") or "1") if args.interactive else args.repeat
         # Validate all replay settings before the user switches windows; no input is emitted.
         validate_replay(macro, repeat, args.interval, args.timeout, args.tolerance)
-        from wowregister.licensing.client import require_license
-        session = require_license()
+        print("每轮自动生成两个 8–10 位字母名字（命令行指定的名字除外）。", flush=True)
         desktop = Desktop()
-        desktop.license_guard = session.check
         wait_for_start(desktop)
         desktop.bind(macro)
         desktop.wait(.4)  # Let the initiating F6 key be released.
-        replay(macro, desktop, repeat, args.interval, args.timeout, args.tolerance, report=lambda message: print(message, flush=True))
+        replay(macro, desktop, repeat, args.interval, args.timeout, args.tolerance, report=lambda message: print(message, flush=True),
+               name_factory=lambda: [args.name_first if args.name_first is not None else random_name(),
+                                     args.name_second if args.name_second is not None else random_name()], timing=args.timing)
         return 0
     except (OSError, ValueError, RuntimeError, KeyboardInterrupt) as exc:
         print(f"回放已停止：{exc}")

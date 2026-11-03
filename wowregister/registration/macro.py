@@ -3,11 +3,19 @@ import base64
 import io
 import json
 import math
+import random
+import secrets
+import string
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageStat
 
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "data/registration/macro.json"
+
+
+def random_name():
+    """Generate an 8–10 letter name, capitalized for game input."""
+    return "".join(secrets.choice(string.ascii_lowercase) for _ in range(8 + secrets.randbelow(3))).capitalize()
 
 
 def validate_name(name):
@@ -59,6 +67,8 @@ def validate(macro):
             if not all(type(action.get(k)) is int and 0 <= action[k] < bound for k, bound in zip(("x", "y"), size)):
                 raise ValueError("点击位置超出目标窗口")
         elif kind == "checkpoint":
+            if action.get("purpose", "failure") not in ("ready", "failure"):
+                raise ValueError("检查点用途无效")
             box = action.get("box")
             if (not isinstance(box, list) or len(box) != 4 or not all(type(v) is int for v in box)
                     or not (0 <= box[0] < box[2] <= size[0] and 0 <= box[1] < box[3] <= size[1])):
@@ -127,19 +137,38 @@ def validate_replay(macro, repeat, interval, timeout, tolerance):
     if not number(interval, 2, 600) or not number(timeout, 1, 120) or not number(tolerance, .001, .2):
         raise ValueError("间隔需 2–600 秒，检查点超时需 1–120 秒，图像容差需 0.001–0.2")
     actions = macro["actions"]
-    checkpoints = [i for i, a in enumerate(actions) if a["type"] == "checkpoint"]
+    checkpoints = [i for i, a in enumerate(actions) if a["type"] == "checkpoint" and a.get("purpose", "failure") == "failure"]
     names = [i for i, a in enumerate(actions) if a["type"] == "name"]
     if repeat > 1 and (not checkpoints or (names and max(checkpoints) < max(names))):
         raise ValueError("循环回放必须在输入角色名之后录制 F9 失败提示检查点")
 
 
-def replay(macro, desktop, repeat=1, interval=5, timeout=20, tolerance=.02, report=print):
+def action_delay(action, timing="recorded", edge_click=False):
+    if action["type"] == "click" and (timing == "direct" or (timing == "ruleset" and edge_click)):
+        return random.uniform(.8, 1.2)
+    if timing == "ruleset":
+        return action["delay"] + random.uniform(0, .5)
+    return action["delay"]
+
+
+def replay(macro, desktop, repeat=1, interval=5, timeout=20, tolerance=.02, report=print, name_factory=None, timing="recorded"):
     validate_replay(macro, repeat, interval, timeout, tolerance)
+    if timing not in ("recorded", "direct", "ruleset"):
+        raise ValueError("未知时间策略")
     actions = macro["actions"]
+    click_indices = [i for i, a in enumerate(actions, 1) if a["type"] == "click"]
+    edge_clicks = {click_indices[0], click_indices[-1]} if click_indices else set()
+    short_clicks = set(click_indices[-3:-1]) - edge_clicks
     for cycle in range(1, repeat + 1):
+        names = name_factory() if name_factory else macro["names"]
+        validate_names(names)
+        report(f"本轮名字：{names[0]} / {names[1]}")
         report(f"第 {cycle}/{repeat} 轮")
         for index, action in enumerate(actions, 1):
-            desktop.wait(action["delay"])
+            delay = (random.uniform(.6, .9) if timing == "ruleset" and index in short_clicks
+                     else action_delay(action, timing, edge_click=index in edge_clicks))
+            report(f"  等待 {delay:.2f}s")
+            desktop.wait(delay)
             desktop.guard()
             report(f"  动作 {index}: {action['type']}")
             if action["type"] == "checkpoint":
@@ -153,11 +182,11 @@ def replay(macro, desktop, repeat=1, interval=5, timeout=20, tolerance=.02, repo
                     if matches >= 2:
                         break
                     if desktop.now() >= deadline:
-                        raise RuntimeError(f"未看到录制的失败提示，停止回放（可能成功、页面变化或响应超时；需人工查看）。图像误差 {error:.3f}")
+                        raise RuntimeError(f"未看到录制的目标画面，停止回放（可能成功、页面变化或响应超时；需人工查看）。图像误差 {error:.3f}")
                     desktop.wait(.15)
                 desktop.guard()
             elif action["type"] == "name":
-                desktop.type_name(macro["names"][action["slot"]])
+                desktop.type_name(names[action["slot"]])
             else:
                 desktop.click(action)
         if cycle < repeat:
