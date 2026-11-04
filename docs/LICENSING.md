@@ -1,6 +1,6 @@
 # 卡密自动激活与 Vercel / JSONBin 部署
 
-v0.4 的使用流程：用户在 EXE 页面输入卡密 → Vercel 校验卡密和有效期 → 首次绑定当前电脑 → 自动更新 JSONBin → 客户端加密保存卡密。用户不需要复制机器码，也不需要管理员逐台填写。验证接口为 `https://wowregister-license.vercel.app/api/verify`。
+v0.4.1 的使用流程：用户在 EXE 页面输入卡密 → Vercel 校验卡密和有效期 → 首次绑定当前电脑 → 自动更新 JSONBin → 客户端加密保存卡密。用户不需要复制机器码，也不需要管理员逐台填写。验证接口为 `https://license.wowazeroth.online/api/verify`。
 
 Windows 负责录制和点击；Vercel 只运行 `license_server/` 内的授权接口，不运行游戏。JSONBin 保存卡密记录，Vercel 私有 Blob 保存首次绑定及写入锁，不需要 Redis。
 

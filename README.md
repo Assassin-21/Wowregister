@@ -4,7 +4,7 @@
 
 下载 [Windows ZIP 包](https://github.com/Assassin-21/Wowregister/raw/refs/heads/main/release_files/Wowregister-Windows-x64.zip)，解压后双击 `Wowregister.exe` 即可。用户无需安装 Python 或 ChatGPT。程序会打开本地操作页面，提供卡密激活、模式 1/2、运行轮数、启动、停止和运行日志。
 
-输入卡密并点击激活，首次会自动识别机器码、绑定当前电脑并更新 JSONBin 状态。然后选择模式和轮数，点击“启动脚本”，切回游戏按 F6 开始；F10 停止。使用结束点击“退出工具”。验证接口为 `https://wowregister-license.vercel.app/api/verify`，正式包内置接口地址。游戏盘符可以不同，客户区仍需为 1920×1080、DPI 96。
+输入卡密并点击激活，首次会自动识别机器码、绑定当前电脑并更新 JSONBin 状态。然后选择模式和轮数，点击“启动脚本”，切回游戏按 F6 开始；F10 停止。使用结束点击“退出工具”。v0.4.1 正式包内置验证接口 `https://license.wowazeroth.online/api/verify`。游戏盘符可以不同，客户区仍需为 1920×1080、DPI 96。
 
 开发者运行源码页面可双击 `start_register.cmd`。构建正式 EXE：先安装 `requirements-build.txt`，再运行 `python tools/build_exe.py`，产物在 `dist/`。仅将白名单中的三个有效录制 JSON、页面和公开接口地址加入 EXE，服务端密钥和签发资料不打包。
 
